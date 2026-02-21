@@ -46,3 +46,4 @@ app.*.map.json
 
 # Automatically exclude private secrets file
 /lib/secrets.dart
+prompt.txt
