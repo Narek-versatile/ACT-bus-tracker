@@ -5,14 +5,9 @@ class AppConstants {
   // Web Dashboard (Localhost) - Use 10.0.2.2 for Android Emulator, or 192.168.10.103 for physical device
   static const String backendApiEndpoint = 'http://192.168.10.103:3000/api';
 
-  // Telegram Bot Configuration
-  static const String telegramBotToken = Secrets.telegramBotToken;
-  static const String telegramChatId = Secrets.telegramChatId;
-  static const String telegramApiEndpoint =
-      'https://api.telegram.org/bot$telegramBotToken/sendMessage';
-
-  // API endpoint used for testing (set to Telegram for now)
-  static const String apiEndpoint = telegramApiEndpoint;
+  // API Endpoints
+  static const String tokenApiUrl = Secrets.tokenApiUrl;
+  static const String locationApiUrl = Secrets.locationApiUrl;
 
   // Location update interval in seconds
   static const int updateIntervalSeconds = 10;

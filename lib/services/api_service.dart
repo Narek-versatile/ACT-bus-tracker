@@ -10,32 +10,42 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  /// Authenticate driver and mock receiving access/refresh tokens
+  /// Authenticate driver and get the token
   Future<bool> login(String login, String password) async {
     try {
-      // Mocking token generation for testing via Telegram bot
-      final accessToken =
-          "mock_access_token_${DateTime.now().millisecondsSinceEpoch}";
-      final refreshToken =
-          "mock_refresh_token_${DateTime.now().millisecondsSinceEpoch}";
-
-      final body = {
-        'chat_id': AppConstants.telegramChatId,
-        'text': "LOGIN ATTEMPT:\nLogin: $login\nPassword: $password",
-      };
+      final jsonBody = jsonEncode({'username': login, 'password': password});
 
       final response = await http
           .post(
-            Uri.parse(AppConstants.telegramApiEndpoint),
+            Uri.parse(AppConstants.tokenApiUrl),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(body),
+            body: jsonBody,
           )
           .timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        final storage = StorageService();
-        await storage.saveAuthTokens(login, accessToken, refreshToken);
-        return true;
+        String accessToken = '';
+        try {
+          final data = jsonDecode(response.body);
+          if (data is Map<String, dynamic>) {
+            accessToken =
+                data['token'] ??
+                data['access'] ??
+                data['key'] ??
+                data['access_token'] ??
+                '';
+          }
+        } catch (_) {
+          if (response.body.isNotEmpty && !response.body.startsWith('{')) {
+            accessToken = response.body.trim();
+          }
+        }
+
+        if (accessToken.isNotEmpty) {
+          final storage = StorageService();
+          await storage.saveAuthTokens(login, accessToken, '');
+          return true;
+        }
       }
       return false;
     } catch (e) {
@@ -49,7 +59,6 @@ class ApiService {
   Future<bool> sendLocation(LocationData data) async {
     final storage = StorageService();
     final accessToken = storage.getAccessToken() ?? '';
-    final login = storage.getLogin() ?? 'unknown';
 
     for (int attempt = 1; attempt <= AppConstants.maxRetries; attempt++) {
       try {
@@ -57,36 +66,14 @@ class ApiService {
           'Sending location (attempt $attempt/${AppConstants.maxRetries}): ${data.toString()}',
         );
 
-        // Determine if target is Telegram
-        final bool isTelegram = AppConstants.apiEndpoint.contains(
-          'telegram.org',
-        );
-
-        Object body;
-        if (isTelegram) {
-          // Format the exact output the user wants to see in Telegram for mock verification
-          final requestHeaders = {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $accessToken',
-          };
-
-          body = {
-            'chat_id': AppConstants.telegramChatId,
-            'text':
-                "LOC UPDATE:\nLogin: $login\n\n--- Request ---\nHEADERS:\n${const JsonEncoder.withIndent('  ').convert(requestHeaders)}\n\nPAYLOAD:\n${const JsonEncoder.withIndent('  ').convert(data.toJson())}",
-          };
-        } else {
-          body = data.toJson();
-        }
-
         final response = await http
             .post(
-              Uri.parse(AppConstants.apiEndpoint),
+              Uri.parse(AppConstants.locationApiUrl),
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': 'Bearer $accessToken',
+                'X-API-KEY': accessToken,
               },
-              body: jsonEncode(body),
+              body: jsonEncode(data.toJson()),
             )
             .timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
 

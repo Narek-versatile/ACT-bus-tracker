@@ -10,13 +10,8 @@ class LocationData {
     required this.timestamp,
   });
 
-  /// Convert to JSON format matching the backend API specification
   Map<String, dynamic> toJson() {
-    return {
-      'latitude': latitude,
-      'longitude': longitude,
-      'timestamp': timestamp,
-    };
+    return {'lat': latitude, 'lng': longitude, 'time': timestamp};
   }
 
   @override

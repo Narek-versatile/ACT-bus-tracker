@@ -1,0 +1,11 @@
+There will be a slight change
+
+i now have the url-s that the app will send post requests to.
+but first there will be the url for registration of the drivers.
+i dont have that registration url but still imagine, that it exists and it works.
+we will send the registration credentials for each driver. for context it is an existing databse connected to web app.
+we will still use it for the app for rlower effort. so after the credentials were correct, the app should send a POST request to "https://matrix.actcollege.am/matrix/transport/mobile/token/" and then the response POST request will be the token. after the token is obtained, it should be stored locally on the device.
+the obtained token should be sent via headers every time and it will also identify the specific driver because it's unique for each driver.
+the app then should send a POST request to "https://matrix.actcollege.am/matrix/transport/location/" where it will send some minimal json that will include {"lat", "lng", "time"} and the most critical part: the token should be sent via headers with every request.
+the post request should be sent every 10 seconds(for now).
+also the token is called "X-API-KEY" for reference. you can delete the telegram integration as the app is almost production ready. dont forget to hide all the api keys and other sensitive information via gitignore and even urls as they can be exploited. the project will be published to github.
