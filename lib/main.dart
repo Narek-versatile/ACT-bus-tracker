@@ -23,10 +23,15 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'tracker-login-tg',
+      title: 'ACT Drive',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF003865), // Dark Ocean Blue
+          primary: const Color(0xFF003865),
+          secondary: const Color(0xFFFFD100), // Bright Yellow
+          tertiary: const Color(0xFFD4FF33), // Light Limey Color
+        ),
         useMaterial3: true,
       ),
       home: const SplashScreen(),
@@ -74,14 +79,14 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.directions_bus, size: 100, color: Colors.blue),
+            Icon(Icons.directions_bus, size: 100, color: Color(0xFF003865)),
             SizedBox(height: 24),
             Text(
-              'tracker-login-tg',
+              'ACT Drive',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 16),
-            CircularProgressIndicator(),
+            CircularProgressIndicator(color: Color(0xFFFFD100)),
           ],
         ),
       ),
