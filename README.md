@@ -25,8 +25,8 @@ If you just cloned this repository, you must create the secure secrets file manu
 
 ```dart
 class Secrets {
-  static const String tokenApiUrl = 'https://matrix.actcollege.am/matrix/transport/mobile/token/';
-  static const String locationApiUrl = 'https://matrix.actcollege.am/matrix/transport/location/';
+  static const String tokenApiUrl = 'your backend URL here';
+  static const String locationApiUrl = 'your backend URL here';
 }
 ```
 
@@ -35,7 +35,7 @@ class Secrets {
 ## How It Works
 
 ### 1. The Login Phase
-* **Client App**: Sends a `POST` request with the driver's `{"username": "...", "password": "..."}`.
+* **Client App**: Sends a `POST` request with the driver's `{'example': 'example'}`.
 * **Backend Expected**: Validates credentials and returns a secure token.
 * **App Implementation**: Extracts the token from the response, saves it natively inside `SharedPreferences`, and uses it to identify the specific driver in future requests.
 
