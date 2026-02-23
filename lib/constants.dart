@@ -6,6 +6,7 @@ class AppConstants {
   static const String backendApiEndpoint = 'http://192.168.10.103:3000/api';
 
   // API Endpoints
+  static const String loginApiUrl = Secrets.loginApiUrl;
   static const String tokenApiUrl = Secrets.tokenApiUrl;
   static const String locationApiUrl = Secrets.locationApiUrl;
 

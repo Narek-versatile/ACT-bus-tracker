@@ -93,10 +93,6 @@ class LocationService {
       return null;
     }
 
-    return LocationData(
-      latitude: position.latitude,
-      longitude: position.longitude,
-      timestamp: DateTime.now().toUtc().toIso8601String(),
-    );
+    return LocationData(lat: position.latitude, lon: position.longitude);
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/location_data.dart';
 import '../constants.dart';
@@ -15,37 +16,64 @@ class ApiService {
     try {
       final jsonBody = jsonEncode({'username': login, 'password': password});
 
-      final response = await http
+      // 1. Get JWT token
+      final response1 = await http
           .post(
-            Uri.parse(AppConstants.tokenApiUrl),
+            Uri.parse(AppConstants.loginApiUrl),
             headers: {'Content-Type': 'application/json'},
             body: jsonBody,
           )
           .timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (response1.statusCode >= 200 && response1.statusCode < 300) {
         String accessToken = '';
         try {
-          final data = jsonDecode(response.body);
-          if (data is Map<String, dynamic>) {
-            accessToken =
-                data['token'] ??
-                data['access'] ??
-                data['key'] ??
-                data['access_token'] ??
-                '';
+          final data1 = jsonDecode(response1.body);
+          if (data1 is Map<String, dynamic>) {
+            accessToken = data1['access'] ?? '';
           }
-        } catch (_) {
-          if (response.body.isNotEmpty && !response.body.startsWith('{')) {
-            accessToken = response.body.trim();
-          }
-        }
+        } catch (_) {}
 
         if (accessToken.isNotEmpty) {
-          final storage = StorageService();
-          await storage.saveAuthTokens(login, accessToken, '');
-          return true;
+          // 2. Get X-API-TOKEN
+          final response2 = await http
+              .post(
+                Uri.parse(AppConstants.tokenApiUrl),
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': 'Bearer $accessToken',
+                },
+              )
+              .timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
+
+          if (response2.statusCode >= 200 && response2.statusCode < 300) {
+            String xApiToken = '';
+            try {
+              final data2 = jsonDecode(response2.body);
+              if (data2 is Map<String, dynamic>) {
+                xApiToken = data2['token'] ?? '';
+              }
+            } catch (_) {}
+
+            if (xApiToken.isNotEmpty) {
+              final storage = StorageService();
+              await storage.saveAuthTokens(login, xApiToken, '');
+              return true;
+            } else {
+              print('X-API-TOKEN not found in response');
+            }
+          } else {
+            print(
+              'Error getting X-API-TOKEN: ${response2.statusCode} - ${response2.body}',
+            );
+          }
+        } else {
+          print('JWT token not found in response');
         }
+      } else {
+        print(
+          'Error getting JWT token: ${response1.statusCode} - ${response1.body}',
+        );
       }
       return false;
     } catch (e) {
@@ -59,7 +87,6 @@ class ApiService {
   Future<bool> sendLocation(LocationData data) async {
     final storage = StorageService();
     final accessToken = storage.getAccessToken() ?? '';
-
     for (int attempt = 1; attempt <= AppConstants.maxRetries; attempt++) {
       try {
         print(
