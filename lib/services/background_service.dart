@@ -34,16 +34,12 @@ class BackgroundService {
 
     await service.configure(
       androidConfiguration: AndroidConfiguration(
-        // This will be executed when app is in foreground or background in separate isolate
         onStart: onStart,
-
-        // auto start service
         autoStart: false,
         isForegroundMode: true,
-
         notificationChannelId: AppConstants.notificationChannelId,
-        initialNotificationTitle: 'Bus Tracking',
-        initialNotificationContent: 'Initializing service...',
+        initialNotificationTitle: 'ACT Drive',
+        initialNotificationContent: 'Location tracking active',
         foregroundServiceNotificationId: AppConstants.notificationId,
         foregroundServiceTypes: [AndroidForegroundType.location],
       ),
@@ -57,11 +53,11 @@ class BackgroundService {
   /// Start background tracking
   Future<void> startTracking() async {
     final service = FlutterBackgroundService();
-    // Start the service if not running
     if (!await service.isRunning()) {
       await service.startService();
+      // Give the isolate a moment to boot before invoking
+      await Future.delayed(const Duration(milliseconds: 500));
     }
-    // Invoke logic to ensure we are tracking
     service.invoke('startTracking');
   }
 
@@ -72,108 +68,96 @@ class BackgroundService {
   }
 }
 
-// Top-level function for background execution
+// Top-level function for background execution — runs in a separate isolate
 @pragma('vm:entry-point')
 void onStart(ServiceInstance service) async {
-  try {
-    // Only available for flutter 3.0.0 and later
-    DartPluginRegistrant.ensureInitialized();
+  // IMPORTANT: Only DartPluginRegistrant here — NOT WidgetsFlutterBinding.
+  // WidgetsFlutterBinding cannot be used in a background isolate and will
+  // cause a permanent hang on Samsung One UI devices.
+  DartPluginRegistrant.ensureInitialized();
 
-    // Initialize services in this isolate
-    final storage = StorageService();
-    await storage.init();
+  // Initialize storage in this isolate
+  final storage = StorageService();
+  await storage.init();
 
-    final locationService = LocationService();
-    final apiService = ApiService();
+  final locationService = LocationService();
+  final apiService = ApiService();
 
-    // For Android, we manage the notification
-    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-        FlutterLocalNotificationsPlugin();
-
-    // Initialize notifications in background isolate
-    const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
-    );
-    const initSettings = InitializationSettings(android: androidSettings);
-    await flutterLocalNotificationsPlugin.initialize(initSettings);
-
-    // Explicitly create channel to ensure it exists
-    const androidChannel = AndroidNotificationChannel(
-      AppConstants.notificationChannelId,
-      AppConstants.notificationChannelName,
-      description: 'Shows when bus tracking is active',
-      importance: Importance.low,
+  // Immediately update the foreground notification so it never shows
+  // "Initializing service..." for more than an instant.
+  if (service is AndroidServiceInstance) {
+    service.setForegroundNotificationInfo(
+      title: 'ACT Drive',
+      content: 'Location tracking active',
     );
 
-    await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(androidChannel);
-
-    if (service is AndroidServiceInstance) {
-      service.on('setAsForeground').listen((event) {
-        service.setAsForegroundService();
-      });
-
-      service.on('setAsBackground').listen((event) {
-        service.setAsBackgroundService();
-      });
-    }
-
-    service.on('stopService').listen((event) {
-      service.stopSelf();
+    service.on('setAsForeground').listen((event) {
+      service.setAsForegroundService();
     });
 
-    // Start periodic timer for location updates
-    Timer.periodic(Duration(seconds: AppConstants.updateIntervalSeconds), (
-      timer,
-    ) async {
-      try {
-        if (service is AndroidServiceInstance) {
-          if (await service.isForegroundService()) {
-            // Check if tracking is enabled in storage
+    service.on('setAsBackground').listen((event) {
+      service.setAsBackgroundService();
+    });
+  }
+
+  // Listen for stop command
+  service.on('stopService').listen((event) {
+    service.stopSelf();
+  });
+
+  // Track whether the periodic timer is active
+  Timer? locationTimer;
+
+  void startLocationTimer() {
+    // Avoid creating duplicate timers
+    if (locationTimer != null && locationTimer!.isActive) return;
+
+    locationTimer = Timer.periodic(
+      Duration(seconds: AppConstants.updateIntervalSeconds),
+      (timer) async {
+        try {
+          if (service is AndroidServiceInstance) {
+            // Stop if tracking was disabled externally
             if (!storage.getTrackingEnabled()) {
+              timer.cancel();
               service.stopSelf();
               return;
             }
 
             final location = await locationService.getLocationData();
 
-            String notificationBody = 'Updates running...';
-
+            String notificationContent;
             if (location != null) {
-              notificationBody =
+              notificationContent =
                   'Last update: ${DateTime.now().toLocal().toString().split('.').first}';
-
-              // Send to API
               await apiService.sendLocation(location);
             } else {
-              notificationBody = 'Waiting for GPS...';
+              notificationContent = 'Waiting for GPS signal...';
             }
 
-            flutterLocalNotificationsPlugin.show(
-              AppConstants.notificationId,
-              'Bus Tracking Active',
-              notificationBody,
-              const NotificationDetails(
-                android: AndroidNotificationDetails(
-                  AppConstants.notificationChannelId,
-                  AppConstants.notificationChannelName,
-                  icon: '@mipmap/ic_launcher',
-                  ongoing: true,
-                  importance: Importance.low,
-                  priority: Priority.low,
-                ),
-              ),
+            // Use setForegroundNotificationInfo — this is the correct way
+            // to update the foreground service's own notification.
+            // Do NOT use flutter_local_notifications.show() for this.
+            service.setForegroundNotificationInfo(
+              title: 'ACT Drive',
+              content: notificationContent,
             );
           }
+        } catch (e) {
+          print('Error in background timer: $e');
         }
-      } catch (e) {
-        print('Error in background timer: $e');
-      }
-    });
-  } catch (e) {
-    print('Error starting background service: $e');
+      },
+    );
+  }
+
+  // Listen for startTracking event from the main isolate
+  service.on('startTracking').listen((event) {
+    startLocationTimer();
+  });
+
+  // Also auto-start the timer if tracking was already enabled before
+  // the service was launched (e.g. after a device reboot or app resume)
+  if (storage.getTrackingEnabled()) {
+    startLocationTimer();
   }
 }
